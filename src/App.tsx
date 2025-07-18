@@ -102,6 +102,8 @@ function App() {
     const urlParams = new URLSearchParams(window.location.search);
     const action = urlParams.get('action');
     
+    console.log('URL params:', Object.fromEntries(urlParams.entries()));
+    
     if (action === 'send') {
       // Handle transaction request
       const to = urlParams.get('to');
@@ -125,16 +127,21 @@ function App() {
         });
       }
     } else if (action === null) {
-      // Check for dApp connection request (existing logic)
+      // Check for dApp connection request
       const successUrl = urlParams.get('success_url');
       const failureUrl = urlParams.get('failure_url');
       const origin = urlParams.get('origin');
       const appName = urlParams.get('app_name');
       
+      console.log('Connection request params:', { successUrl, failureUrl, origin, appName });
+      
       if (successUrl && failureUrl && origin) {
         // Check if this dApp is already connected
         const connections = JSON.parse(localStorage.getItem('connectedDApps') || '[]');
         const existingConnection = connections.find((conn: any) => conn.origin === decodeURIComponent(origin));
+        
+        console.log('Existing connections:', connections);
+        console.log('Found existing connection:', existingConnection);
         
         if (existingConnection) {
           // dApp already connected, redirect to success with existing connection info
@@ -142,15 +149,21 @@ function App() {
           successUrlObj.searchParams.set('account_id', existingConnection.selectedAddress);
           
           // Find the wallet with public key
-          const connectedWallet = wallets.find(w => w.address === existingConnection.selectedAddress);
-          if (connectedWallet && connectedWallet.publicKey) {
-            successUrlObj.searchParams.set('public_key', connectedWallet.publicKey);
+          const storedWallets = localStorage.getItem('wallets');
+          if (storedWallets) {
+            const parsedWallets = JSON.parse(storedWallets);
+            const connectedWallet = parsedWallets.find((w: any) => w.address === existingConnection.selectedAddress);
+            if (connectedWallet && connectedWallet.publicKey) {
+              successUrlObj.searchParams.set('public_key', connectedWallet.publicKey);
+            }
           }
           
+          console.log('Redirecting to existing connection:', successUrlObj.toString());
           window.location.href = successUrlObj.toString();
           return;
         }
         
+        console.log('Setting new connection request');
         setConnectionRequest({
           origin: decodeURIComponent(origin),
           successUrl: decodeURIComponent(successUrl),
@@ -226,6 +239,8 @@ function App() {
   const handleConnectionApprove = (selectedWallet: Wallet) => {
     if (!connectionRequest) return;
     
+    console.log('Approving connection for wallet:', selectedWallet.address);
+    
     // Store connection
     const connections = JSON.parse(localStorage.getItem('connectedDApps') || '[]');
     const newConnection = {
@@ -238,36 +253,139 @@ function App() {
     connections.push(newConnection);
     localStorage.setItem('connectedDApps', JSON.stringify(connections));
     
+    console.log('Stored connection:', newConnection);
+    console.log('All connections:', connections);
+    
     // Redirect to success URL with wallet info
     const successUrl = new URL(connectionRequest.successUrl);
     successUrl.searchParams.set('account_id', selectedWallet.address);
-    successUrl.searchParams.set('public_key', selectedWallet.publicKey || '');
+    if (selectedWallet.publicKey) {
+      successUrl.searchParams.set('public_key', selectedWallet.publicKey);
+    }
     
-    window.location.href = successUrl.toString();
+    console.log('Redirecting to success URL:', successUrl.toString());
+    
+    // Clear the connection request before redirecting
+    setConnectionRequest(null);
+    
+    // Use a small delay to ensure state is updated
+    setTimeout(() => {
+      window.location.href = successUrl.toString();
+    }, 100);
   };
 
   const handleConnectionReject = () => {
     if (!connectionRequest) return;
     
-    // Redirect to failure URL
-    window.location.href = connectionRequest.failureUrl;
+    console.log('Rejecting connection request');
+    
+    // Clear the connection request before redirecting
+    setConnectionRequest(null);
+    
+    // Use a small delay to ensure state is updated
+    setTimeout(() => {
+      window.location.href = connectionRequest.failureUrl;
+    }, 100);
   };
 
   const handleTransactionApprove = (txHash: string) => {
     if (!transactionRequest) return;
     
+    console.log('Approving transaction with hash:', txHash);
+    
     // Redirect to success URL with transaction hash
     const successUrl = new URL(transactionRequest.successUrl);
     successUrl.searchParams.set('tx_hash', txHash);
     
-    window.location.href = successUrl.toString();
+    console.log('Redirecting to transaction success URL:', successUrl.toString());
+    
+    // Clear the transaction request before redirecting
+    setTransactionRequest(null);
+    
+    // Use a small delay to ensure state is updated
+    setTimeout(() => {
+      window.location.href = successUrl.toString();
+    }, 100);
   };
 
   const handleTransactionReject = () => {
     if (!transactionRequest) return;
     
-    // Redirect to failure URL
-    window.location.href = transactionRequest.failureUrl;
+    console.log('Rejecting transaction request');
+    
+    // Clear the transaction request before redirecting
+    setTransactionRequest(null);
+    
+    // Use a small delay to ensure state is updated
+    setTimeout(() => {
+      window.location.href = transactionRequest.failureUrl;
+    }, 100);
+  };
+
+  // Show dApp connection screen if there's a connection request and we have wallets
+  if (connectionRequest) {
+    console.log('Showing connection request screen');
+    console.log('Available wallets:', wallets.length);
+    
+    // If no wallets are available, redirect to failure
+    if (wallets.length === 0) {
+      console.log('No wallets available, redirecting to failure URL');
+      setTimeout(() => {
+        window.location.href = connectionRequest.failureUrl;
+      }, 100);
+      return null;
+    }
+    
+    return (
+      <ThemeProvider defaultTheme="dark" storageKey="octra-wallet-theme">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+          <DAppConnection
+            connectionRequest={connectionRequest}
+            wallets={wallets}
+            selectedWallet={selectedWalletForConnection}
+            onWalletSelect={setSelectedWalletForConnection}
+            onApprove={handleConnectionApprove}
+            onReject={handleConnectionReject}
+          />
+          <Toaster />
+        </div>
+      </ThemeProvider>
+    );
+  }
+
+  // Show dApp transaction request screen if there's a transaction request and we have wallets
+  if (transactionRequest) {
+    console.log('Showing transaction request screen');
+    console.log('Available wallets:', wallets.length);
+    
+    // If no wallets are available, redirect to failure
+    if (wallets.length === 0) {
+      console.log('No wallets available, redirecting to failure URL');
+      setTimeout(() => {
+        window.location.href = transactionRequest.failureUrl;
+      }, 100);
+      return null;
+    }
+    
+    return (
+      <ThemeProvider defaultTheme="dark" storageKey="octra-wallet-theme">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+          <TransactionRequestDialog
+            transactionRequest={transactionRequest}
+            wallets={wallets}
+            selectedWallet={selectedWalletForTransaction}
+            connectedWallet={connectedDAppWallet}
+            onWalletSelect={setSelectedWalletForTransaction}
+            onApprove={handleTransactionApprove}
+            onReject={handleTransactionReject}
+          />
+          <Toaster />
+        </div>
+      </ThemeProvider>
+    );
+  }
+
+    window.location.href = successUrl.toString();
   };
 
   const addWallet = (newWallet: Wallet) => {
@@ -352,45 +470,6 @@ function App() {
       <ThemeProvider defaultTheme="dark" storageKey="octra-wallet-theme">
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
           <UnlockWallet onUnlock={handleUnlock} />
-          <Toaster />
-        </div>
-      </ThemeProvider>
-    );
-  }
-
-  // Show dApp transaction request screen if there's a transaction request
-  if (transactionRequest && wallets.length > 0) {
-    return (
-      <ThemeProvider defaultTheme="dark" storageKey="octra-wallet-theme">
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-          <TransactionRequestDialog
-            transactionRequest={transactionRequest}
-            wallets={wallets}
-            selectedWallet={selectedWalletForTransaction}
-            connectedWallet={connectedDAppWallet}
-            onWalletSelect={setSelectedWalletForTransaction}
-            onApprove={handleTransactionApprove}
-            onReject={handleTransactionReject}
-          />
-          <Toaster />
-        </div>
-      </ThemeProvider>
-    );
-  }
-
-  // Show dApp connection screen if there's a connection request
-  if (connectionRequest && wallets.length > 0) {
-    return (
-      <ThemeProvider defaultTheme="dark" storageKey="octra-wallet-theme">
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-          <DAppConnection
-            connectionRequest={connectionRequest}
-            wallets={wallets}
-            selectedWallet={selectedWalletForConnection}
-            onWalletSelect={setSelectedWalletForConnection}
-            onApprove={handleConnectionApprove}
-            onReject={handleConnectionReject}
-          />
           <Toaster />
         </div>
       </ThemeProvider>

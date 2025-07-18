@@ -40,6 +40,8 @@ export function DAppConnection({
       return;
     }
 
+    console.log('DAppConnection: Approving connection for wallet:', selectedWallet.address);
+    
     setIsProcessing(true);
     try {
       onApprove(selectedWallet);
@@ -50,12 +52,14 @@ export function DAppConnection({
         description: "Failed to approve connection",
         variant: "destructive",
       });
-    } finally {
       setIsProcessing(false);
+    } finally {
+      // Don't set isProcessing to false here since we're redirecting
     }
   };
 
   const handleReject = () => {
+    console.log('DAppConnection: Rejecting connection');
     setIsProcessing(true);
     onReject();
   };

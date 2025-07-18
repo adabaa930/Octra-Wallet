@@ -93,6 +93,8 @@ export function TransactionRequestDialog({
       return;
     }
 
+    console.log('DAppTransactionRequest: Approving transaction');
+    
     setIsProcessing(true);
 
     try {
@@ -117,6 +119,7 @@ export function TransactionRequestDialog({
           title: "Transaction Sent!",
           description: "Transaction has been submitted successfully",
         });
+        console.log('Transaction successful, hash:', result.hash);
         onApprove(result.hash);
       } else {
         toast({
@@ -124,6 +127,7 @@ export function TransactionRequestDialog({
           description: result.error || "Unknown error occurred",
           variant: "destructive",
         });
+        setIsProcessing(false);
       }
     } catch (error) {
       console.error('Transaction error:', error);
@@ -132,12 +136,14 @@ export function TransactionRequestDialog({
         description: "Failed to send transaction",
         variant: "destructive",
       });
-    } finally {
       setIsProcessing(false);
+    } finally {
+      // Don't set isProcessing to false here since we're redirecting on success
     }
   };
 
   const handleReject = () => {
+    console.log('DAppTransactionRequest: Rejecting transaction');
     setIsProcessing(true);
     onReject();
   };
